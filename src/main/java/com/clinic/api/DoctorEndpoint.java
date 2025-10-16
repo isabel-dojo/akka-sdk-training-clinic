@@ -1,4 +1,4 @@
-package com.example.api;
+package com.clinic.api;
 
 import akka.http.javadsl.model.StatusCodes;
 import akka.javasdk.annotations.Acl;

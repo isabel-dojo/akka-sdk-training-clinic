@@ -1,6 +1,5 @@
-package com.example.api;
+package com.clinic.api;
 
-import akka.http.javadsl.model.HttpHeader;
 import akka.javasdk.annotations.Acl;
 import akka.javasdk.annotations.http.HttpEndpoint;
 import akka.javasdk.annotations.http.Put;
