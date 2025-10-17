@@ -111,6 +111,13 @@ public class ScheduleTest {
         assertEquals(0, schedule.appointments().size());
     }
 
+    @Test
+    public void serializeId() {
+        assertEquals("house:2021-01-01", houseScheduleId.toString());
+
+        assertEquals(houseScheduleId, Schedule.ScheduleId.fromString("house:2021-01-01"));
+    }
+
     private Schedule.Appointment appointment(String startTime, String endTime) {
         return new Schedule.Appointment(LocalTime.parse(startTime), LocalTime.parse(endTime));
     }

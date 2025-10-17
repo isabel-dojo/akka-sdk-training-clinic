@@ -29,7 +29,19 @@ public record Schedule(ScheduleId id, WorkingHours workingHours, List<Appointmen
         this(id, workingHours, List.of());
     }
 
-    public record ScheduleId(String doctorId, LocalDate date) {}
+    public record ScheduleId(String doctorId, LocalDate date) {
+        public String toString() {
+            return doctorId + ":" + date.toString();
+        }
+
+        public static ScheduleId fromString(String id) {
+            var splitted = id.split(":");
+            var doctorId = splitted[0];
+            var date = LocalDate.parse(splitted[1]);
+            return new ScheduleId(doctorId, date);
+        }
+    }
+
     /**
      * @param startTime inclusive
      * @param endTime exclusive
