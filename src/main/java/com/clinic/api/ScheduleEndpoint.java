@@ -14,9 +14,9 @@ public class ScheduleEndpoint extends AbstractHttpEndpoint {
 
     public static final String DOCTOR_ID_HEADER = "doctorId";
 
-    public record Availability(String startTime, String endTime) {}
+    public record WorkingHours(String startTime, String endTime) {}
     public record CreateScheduleRequest(
-            Availability availability
+            WorkingHours workingHours
     ) {}
 
     @Put("{day}")
@@ -29,7 +29,7 @@ public class ScheduleEndpoint extends AbstractHttpEndpoint {
         if (date.isBefore(LocalDate.now())) {
             throw HttpException.badRequest("Cannot schedule for past dates");
         }
-        System.out.println("Received schedule for day: " + day + " doctor: " + doctorId + " availability: " + body);
+        System.out.println("Received schedule for day: " + day + " doctor: " + doctorId + " workinghours: " + body);
     }
 
     private LocalDate parseDate(String day) {
