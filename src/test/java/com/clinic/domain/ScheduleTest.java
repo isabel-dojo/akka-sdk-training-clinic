@@ -16,7 +16,7 @@ public class ScheduleTest {
     Schedule.WorkingHours defaultWorkingHours = new Schedule.WorkingHours(LocalTime.of(10, 0), LocalTime.of(18, 0));
 
     @Nested
-    public class AppointmentTest {
+    public class TimeSlotTest {
 
         @Test
         public void createValidAppointment() {
@@ -45,7 +45,7 @@ public class ScheduleTest {
         }
 
         @Test
-        public void overlappingAppointments() {
+        public void overlappingtimeSlots() {
             var slot = appointment("10:00", "11:00");
 
             assertTrue(slot.overlaps(appointment("10:00", "11:00")));
@@ -77,25 +77,25 @@ public class ScheduleTest {
     public void addAppointment() {
         var schedule = new Schedule(houseScheduleId, defaultWorkingHours);
 
-        var newSchedule = schedule.scheduleAppointment(LocalTime.of(10, 30), Duration.ofMinutes(30));
-        assertEquals(1, newSchedule.appointments().size());
-        assertEquals(0, schedule.appointments().size());
+        var newSchedule = schedule.scheduleAppointment(LocalTime.of(10, 30), Duration.ofMinutes(30), "a1");
+        assertEquals(1, newSchedule.timeSlots().size());
+        assertEquals(0, schedule.timeSlots().size());
     }
 
     @Test
     public void addOverlappingAppointment() {
         var schedule = new Schedule(houseScheduleId, defaultWorkingHours); //an empty schedule
-        var scheduleNew1 = schedule.scheduleAppointment(LocalTime.of(10, 30), Duration.ofMinutes(30));
-        assertEquals(1, scheduleNew1.appointments().size());
+        var scheduleNew1 = schedule.scheduleAppointment(LocalTime.of(10, 30), Duration.ofMinutes(30), "a1");
+        assertEquals(1, scheduleNew1.timeSlots().size());
 
         assertThrows(IllegalArgumentException.class, () ->
-                scheduleNew1.scheduleAppointment(LocalTime.of(10, 30), Duration.ofMinutes(30))
+                scheduleNew1.scheduleAppointment(LocalTime.of(10, 30), Duration.ofMinutes(30), "a1")
         );
         assertThrows(IllegalArgumentException.class, () ->
-                scheduleNew1.scheduleAppointment(LocalTime.of(10, 15), Duration.ofMinutes(30))
+                scheduleNew1.scheduleAppointment(LocalTime.of(10, 15), Duration.ofMinutes(30), "a1")
         );
 
-        assertEquals(1, scheduleNew1.appointments().size());
+        assertEquals(1, scheduleNew1.timeSlots().size());
     }
 
     @Test
@@ -103,12 +103,12 @@ public class ScheduleTest {
         var schedule = new Schedule(houseScheduleId, defaultWorkingHours); //an empty schedule
 
         assertThrows(IllegalArgumentException.class, () ->
-                schedule.scheduleAppointment(LocalTime.of(9, 30), Duration.ofMinutes(60))
+                schedule.scheduleAppointment(LocalTime.of(9, 30), Duration.ofMinutes(60), "a1")
         );
         assertThrows(IllegalArgumentException.class, () ->
-                schedule.scheduleAppointment(LocalTime.of(17, 50), Duration.ofMinutes(11))
+                schedule.scheduleAppointment(LocalTime.of(17, 50), Duration.ofMinutes(11), "a1")
         );
-        assertEquals(0, schedule.appointments().size());
+        assertEquals(0, schedule.timeSlots().size());
     }
 
     @Test
@@ -118,7 +118,7 @@ public class ScheduleTest {
         assertEquals(houseScheduleId, Schedule.ScheduleId.fromString("house:2021-01-01"));
     }
 
-    private Schedule.Appointment appointment(String startTime, String endTime) {
-        return new Schedule.Appointment(LocalTime.parse(startTime), LocalTime.parse(endTime));
+    private Schedule.TimeSchedule appointment(String startTime, String endTime) {
+        return new Schedule.TimeSchedule(LocalTime.parse(startTime), LocalTime.parse(endTime), "a1");
     }
 }

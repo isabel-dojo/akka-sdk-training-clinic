@@ -28,7 +28,7 @@ public class ScheduleEntity extends KeyValueEntity<Schedule> {
                 .thenReply(Done.getInstance());
     }
 
-    public record ScheduleAppointmentData(LocalTime startTime, Duration duration) {
+    public record ScheduleAppointmentData(LocalTime startTime, Duration duration, String appointmentId) {
     }
 
     public Effect<Done> scheduleAppointment(ScheduleAppointmentData data) {
@@ -37,7 +37,7 @@ public class ScheduleEntity extends KeyValueEntity<Schedule> {
 
         try {
             var newState = currentState()
-                    .scheduleAppointment(data.startTime, data.duration);
+                    .scheduleAppointment(data.startTime, data.duration, data.appointmentId);
             return effects().updateState(newState).thenReply(Done.getInstance());
         } catch (IllegalArgumentException e) {
             return effects().error(e.getMessage());

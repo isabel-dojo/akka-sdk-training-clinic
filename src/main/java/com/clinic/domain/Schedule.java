@@ -7,20 +7,20 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public record Schedule(ScheduleId id, WorkingHours workingHours, List<Appointment> appointments) {
+public record Schedule(ScheduleId id, WorkingHours workingHours, List<TimeSchedule> timeSlots) {
 
     private static final Duration MIN_DURATION = Duration.ofMinutes(5);
 
     public Schedule {
-        var isInWorkingHours = appointments
+        var isInWorkingHours = timeSlots
                 .stream()
                 .allMatch(workingHours::isInWorkingHours);
         if (!isInWorkingHours)
             throw new IllegalArgumentException("Appointment is not in working hours");
 
-        var isOverlapping = appointments
+        var isOverlapping = timeSlots
                 .stream()
-                .anyMatch(slot -> appointments.stream().anyMatch(otherSlot -> slot != otherSlot && slot.overlaps(otherSlot)));
+                .anyMatch(slot -> timeSlots.stream().anyMatch(otherSlot -> slot != otherSlot && slot.overlaps(otherSlot)));
         if (isOverlapping)
             throw new IllegalArgumentException("Appointment overlaps with another appointment");
     }
@@ -53,7 +53,7 @@ public record Schedule(ScheduleId id, WorkingHours workingHours, List<Appointmen
            }
         }
 
-        public boolean isInWorkingHours(Appointment timeSlot) {
+        public boolean isInWorkingHours(TimeSchedule timeSlot) {
             return !timeSlot.startTime().isBefore(startTime()) && !timeSlot.endTime().isAfter(endTime());
         }
     }
@@ -62,8 +62,8 @@ public record Schedule(ScheduleId id, WorkingHours workingHours, List<Appointmen
      * @param startTime inclusive
      * @param endTime exclusive
      */
-    public record Appointment(LocalTime startTime, LocalTime endTime) {
-        public Appointment {
+    public record TimeSchedule(LocalTime startTime, LocalTime endTime, String appointmentId) {
+        public TimeSchedule {
             if (startTime.isAfter(endTime)) {
                 throw new IllegalArgumentException("Start time must be before end time");
             }
@@ -72,14 +72,14 @@ public record Schedule(ScheduleId id, WorkingHours workingHours, List<Appointmen
             }
         }
 
-        public boolean overlaps(Appointment other) {
+        public boolean overlaps(TimeSchedule other) {
             return other.startTime().isBefore(endTime()) && other.endTime().isAfter(startTime());
         }
     }
 
-    public Schedule scheduleAppointment(LocalTime startTime, Duration duration) {
-        var newTimeSlot = new Appointment(startTime, startTime.plus(duration));
-        var newSlots = new ArrayList<>(appointments); //copy original slots
+    public Schedule scheduleAppointment(LocalTime startTime, Duration duration, String appointmentId) {
+        var newTimeSlot = new TimeSchedule(startTime, startTime.plus(duration), appointmentId);
+        var newSlots = new ArrayList<>(timeSlots); //copy original slots
         newSlots.add(newTimeSlot); //add a new time slot to the copy
         return new Schedule(id, workingHours, Collections.unmodifiableList(newSlots));
     }

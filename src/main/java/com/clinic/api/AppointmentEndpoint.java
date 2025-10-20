@@ -40,6 +40,6 @@ public class AppointmentEndpoint extends AbstractHttpEndpoint {
         componentClient
                 .forKeyValueEntity(scheduleId.toString())
                 .method(ScheduleEntity::scheduleAppointment)
-                .invoke(new ScheduleEntity.ScheduleAppointmentData(parseTime(body.startTime), DEFAULT_DURATION));
+                .invoke(new ScheduleEntity.ScheduleAppointmentData(parseTime(body.startTime), DEFAULT_DURATION, "todo")); //TODO add appointment id
     }
 }
