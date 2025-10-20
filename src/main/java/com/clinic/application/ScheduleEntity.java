@@ -6,6 +6,8 @@ import akka.javasdk.keyvalueentity.KeyValueEntity;
 import akka.javasdk.keyvalueentity.KeyValueEntityContext;
 import com.clinic.domain.Schedule;
 
+import java.time.Duration;
+import java.time.LocalTime;
 import java.util.Optional;
 
 @Component(id = "schedule")
@@ -24,6 +26,22 @@ public class ScheduleEntity extends KeyValueEntity<Schedule> {
         return effects()
                 .updateState(schedule)
                 .thenReply(Done.getInstance());
+    }
+
+    public record ScheduleAppointmentData(LocalTime startTime, Duration duration) {
+    }
+
+    public Effect<Done> scheduleAppointment(ScheduleAppointmentData data) {
+        if (currentState() == null)
+            return effects().error("Working hours aren't defined for the selected date");
+
+        try {
+            var newState = currentState()
+                    .scheduleAppointment(data.startTime, data.duration);
+            return effects().updateState(newState).thenReply(Done.getInstance());
+        } catch (IllegalArgumentException e) {
+            return effects().error(e.getMessage());
+        }
     }
 
     public Effect<Optional<Schedule>> getSchedule() {

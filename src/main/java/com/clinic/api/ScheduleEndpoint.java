@@ -13,6 +13,9 @@ import com.clinic.domain.Schedule;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
+import static com.clinic.api.common.Validation.parseDate;
+import static com.clinic.api.common.Validation.parseTime;
+
 @HttpEndpoint("schedules")
 @Acl(allow = @Acl.Matcher(principal = Acl.Principal.INTERNET))
 public class ScheduleEndpoint extends AbstractHttpEndpoint {
@@ -53,21 +56,5 @@ public class ScheduleEndpoint extends AbstractHttpEndpoint {
                 .forKeyValueEntity(scheduleId.toString())
                 .method(ScheduleEntity::createSchedule)
                 .invoke(workingHours);
-    }
-
-    private LocalDate parseDate(String day) {
-        try {
-            return LocalDate.parse(day);
-        } catch (Exception e) {
-            throw HttpException.badRequest("Invalid date format");
-        }
-    }
-
-    private LocalTime parseTime(String time) {
-        try {
-            return LocalTime.parse(time);
-        } catch (Exception e) {
-            throw HttpException.badRequest("Invalid time format");
-        }
     }
 }
