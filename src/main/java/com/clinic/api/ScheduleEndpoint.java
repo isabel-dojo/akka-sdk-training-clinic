@@ -1,7 +1,6 @@
 package com.clinic.api;
 
 import akka.http.javadsl.model.HttpHeader;
-import akka.http.javadsl.model.StatusCodes;
 import akka.javasdk.annotations.Acl;
 import akka.javasdk.annotations.http.HttpEndpoint;
 import akka.javasdk.annotations.http.Put;
@@ -13,7 +12,6 @@ import com.clinic.domain.Schedule;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.util.Optional;
 
 @HttpEndpoint("schedules")
 @Acl(allow = @Acl.Matcher(principal = Acl.Principal.INTERNET))
@@ -36,7 +34,7 @@ public class ScheduleEndpoint extends AbstractHttpEndpoint {
     }
 
     @Put("{day}")
-    public void createDoctor(String day, CreateScheduleRequest body) {
+    public void upsertSchedule(String day, CreateScheduleRequest body) {
         var doctorId = requestContext()
                 .requestHeader(DOCTOR_ID_HEADER)
                 .map(HttpHeader::value)

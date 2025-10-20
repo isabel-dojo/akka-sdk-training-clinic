@@ -1,14 +1,14 @@
 package com.clinic.application;
 
 import akka.Done;
-import akka.javasdk.annotations.ComponentId;
+import akka.javasdk.annotations.Component;
 import akka.javasdk.keyvalueentity.KeyValueEntity;
 import akka.javasdk.keyvalueentity.KeyValueEntityContext;
 import com.clinic.domain.Schedule;
 
 import java.util.Optional;
 
-@ComponentId("schedule")
+@Component(id = "schedule")
 public class ScheduleEntity extends KeyValueEntity<Schedule> {
     private Schedule.ScheduleId entityId;
 
