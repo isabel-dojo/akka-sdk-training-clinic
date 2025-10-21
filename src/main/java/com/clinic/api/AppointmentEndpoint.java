@@ -1,16 +1,21 @@
 package com.clinic.api;
 
 import akka.javasdk.annotations.Acl;
+import akka.javasdk.annotations.http.Get;
 import akka.javasdk.annotations.http.HttpEndpoint;
 import akka.javasdk.annotations.http.Post;
+import akka.javasdk.annotations.http.Put;
 import akka.javasdk.client.ComponentClient;
 import akka.javasdk.http.AbstractHttpEndpoint;
 import akka.javasdk.http.HttpException;
+import com.clinic.application.AppointmentEntity;
 import com.clinic.application.ScheduleEntity;
+import com.clinic.domain.Appointment;
 import com.clinic.domain.Schedule;
 
 import java.time.Duration;
 import java.time.LocalDate;
+import java.util.UUID;
 
 import static com.clinic.api.common.Validation.parseDate;
 import static com.clinic.api.common.Validation.parseTime;
@@ -27,19 +32,96 @@ public class AppointmentEndpoint extends AbstractHttpEndpoint {
         this.componentClient = componentClient;
     }
 
-    public record CreateAppointmentRequest(String doctorId, String date, String startTime) {
+    public record CreateAppointmentRequest(String doctorId, String date, String startTime, String issue, String patientId) {
+    }
+
+    public record CreateAppointmentResponse(String id) {
     }
 
     @Post
-    public void scheduleAppointment(CreateAppointmentRequest body) {
+    public CreateAppointmentResponse scheduleAppointment(CreateAppointmentRequest body) {
         LocalDate date = parseDate(body.date);
         if (date.isBefore(LocalDate.now())) {
             throw HttpException.badRequest("Cannot schedule an appointment for past dates");
         }
         var scheduleId = new Schedule.ScheduleId(body.doctorId, date);
+        var appointmentId = UUID.randomUUID().toString();
         componentClient
                 .forKeyValueEntity(scheduleId.toString())
                 .method(ScheduleEntity::scheduleAppointment)
-                .invoke(new ScheduleEntity.ScheduleAppointmentData(parseTime(body.startTime), DEFAULT_DURATION, "todo")); //TODO add appointment id
+                .invoke(new ScheduleEntity.ScheduleAppointmentData(parseTime(body.startTime), DEFAULT_DURATION, appointmentId));
+
+        componentClient
+                .forEventSourcedEntity(appointmentId)
+                .method(AppointmentEntity::createAppointment)
+                .invoke(new AppointmentEntity.CreateAppointmentCmd(date.atTime(parseTime(body.startTime)), body.doctorId, body.patientId, body.issue));
+
+        return new CreateAppointmentResponse(appointmentId);
+    }
+
+    public record RescheduleAppointmentRequest(String doctorId, String date, String startTime) {
+    }
+
+    @Put("{id}")
+    public void reschedule(String id, RescheduleAppointmentRequest body) {
+        componentClient
+                .forEventSourcedEntity(id)
+                .method(AppointmentEntity::reschedule)
+                .invoke(new AppointmentEntity.RescheduleCmd(parseDate(body.date).atTime(parseTime(body.startTime)), body.doctorId));
+    }
+
+    public record AddNotesRequest(String notes) {
+    }
+
+    @Put("{id}/notes")
+    public void addNotes(String id, AddNotesRequest body) {
+        componentClient
+                .forEventSourcedEntity(id)
+                .method(AppointmentEntity::addNotes)
+                .invoke(body.notes());
+    }
+
+    public record AddPrescriptionRequest(String prescription) {
+    }
+
+    @Post("{id}/prescriptions")
+    public void addPrescription(String id, AddPrescriptionRequest body) {
+        componentClient
+                .forEventSourcedEntity(id)
+                .method(AppointmentEntity::addPrescription)
+                .invoke(body.prescription());
+    }
+
+    @Put("{id}/complete")
+    public void complete(String id) {
+        componentClient
+                .forEventSourcedEntity(id)
+                .method(AppointmentEntity::complete)
+                .invoke();
+    }
+
+    @Put("{id}/cancel")
+    public void cancel(String id) {
+        componentClient
+                .forEventSourcedEntity(id)
+                .method(AppointmentEntity::cancel)
+                .invoke();
+    }
+
+    @Put("{id}/missed")
+    public void missed(String id) {
+        componentClient
+                .forEventSourcedEntity(id)
+                .method(AppointmentEntity::markAsMissed)
+                .invoke();
+    }
+
+    @Get("{id}")
+    public Appointment getAppointment(String id) {
+        return componentClient
+                .forEventSourcedEntity(id)
+                .method(AppointmentEntity::getAppointment)
+                .invoke()
+                .orElseThrow(HttpException::notFound);
     }
 }
