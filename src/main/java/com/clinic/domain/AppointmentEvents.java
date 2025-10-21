@@ -22,6 +22,10 @@ public sealed interface AppointmentEvents {
     record Rescheduled(LocalDateTime dateTime, String doctorId) implements AppointmentEvents {
     }
 
+    @TypeName("scheduled")
+    record Scheduled() implements AppointmentEvents {
+    }
+
     @TypeName("cancelled")
     record Cancelled() implements AppointmentEvents {
     }

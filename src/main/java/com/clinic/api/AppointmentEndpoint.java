@@ -9,6 +9,7 @@ import akka.javasdk.client.ComponentClient;
 import akka.javasdk.http.AbstractHttpEndpoint;
 import akka.javasdk.http.HttpException;
 import com.clinic.application.AppointmentEntity;
+import com.clinic.application.RegisterAppointmentWorkflow;
 import com.clinic.application.ScheduleEntity;
 import com.clinic.domain.Appointment;
 import com.clinic.domain.Schedule;
@@ -23,8 +24,6 @@ import static com.clinic.api.common.Validation.parseTime;
 @HttpEndpoint("appointments")
 @Acl(allow = @Acl.Matcher(principal = Acl.Principal.INTERNET))
 public class AppointmentEndpoint extends AbstractHttpEndpoint {
-
-    private static final Duration DEFAULT_DURATION = Duration.ofMinutes(30);
 
     private final ComponentClient componentClient;
 
@@ -44,17 +43,11 @@ public class AppointmentEndpoint extends AbstractHttpEndpoint {
         if (date.isBefore(LocalDate.now())) {
             throw HttpException.badRequest("Cannot schedule an appointment for past dates");
         }
-        var scheduleId = new Schedule.ScheduleId(body.doctorId, date);
         var appointmentId = UUID.randomUUID().toString();
         componentClient
-                .forKeyValueEntity(scheduleId.toString())
-                .method(ScheduleEntity::scheduleAppointment)
-                .invoke(new ScheduleEntity.ScheduleAppointmentData(parseTime(body.startTime), DEFAULT_DURATION, appointmentId));
-
-        componentClient
-                .forEventSourcedEntity(appointmentId)
-                .method(AppointmentEntity::createAppointment)
-                .invoke(new AppointmentEntity.CreateAppointmentCmd(date.atTime(parseTime(body.startTime)), body.doctorId, body.patientId, body.issue));
+                .forWorkflow(appointmentId)
+                .method(RegisterAppointmentWorkflow::startRegistration)
+                .invoke(new RegisterAppointmentWorkflow.RegisterAppointmentCommand(date.atTime(parseTime(body.startTime)), body.doctorId, body.patientId, body.issue));
 
         return new CreateAppointmentResponse(appointmentId);
     }

@@ -58,6 +58,14 @@ public class AppointmentEntity extends EventSourcedEntity<Appointment, Appointme
                 .thenReply(__ -> Done.getInstance());
     }
 
+    public Effect<Done> schedule() {
+        if (currentState() == null)
+            return effects().error("Appointment doesn't exist");
+        return effects()
+                .persist(new AppointmentEvents.Scheduled())
+                .thenReply(__ -> Done.getInstance());
+    }
+
     public Effect<Done> complete() {
         if (currentState() == null)
             return effects().error("Appointment doesn't exist");
@@ -99,6 +107,8 @@ public class AppointmentEntity extends EventSourcedEntity<Appointment, Appointme
                 return currentState().addNotes(e.notes());
             case AppointmentEvents.AddedPrescription e:
                 return currentState().addPrescription(e.prescription());
+            case AppointmentEvents.Scheduled e:
+                return currentState().markAsScheduled();
             case AppointmentEvents.Completed e:
                 return currentState().complete();
             case AppointmentEvents.Cancelled e:

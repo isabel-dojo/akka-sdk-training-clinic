@@ -9,6 +9,7 @@ import java.util.Optional;
 public record Appointment(String id, LocalDateTime dateTime, String doctorId, String patientId, String issue,
                           Optional<String> notes, List<String> prescriptions, Status status) {
     public enum Status {
+        PENDING,
         SCHEDULED,
         CANCELLED,
         COMPLETED,
@@ -16,7 +17,7 @@ public record Appointment(String id, LocalDateTime dateTime, String doctorId, St
     }
 
     public Appointment(String id, LocalDateTime dateTime, String doctorId, String patientId, String issue) {
-        this(id, dateTime, doctorId, patientId, issue, Optional.empty(), List.of(), Status.SCHEDULED);
+        this(id, dateTime, doctorId, patientId, issue, Optional.empty(), List.of(), Status.PENDING);
     }
 
     public Appointment reschedule(LocalDateTime newDateTime, String newDoctorId) {
@@ -33,9 +34,11 @@ public record Appointment(String id, LocalDateTime dateTime, String doctorId, St
         return new Appointment(id, dateTime, doctorId, patientId, issue, notes, Collections.unmodifiableList(prescriptions), status);
     }
 
+    public Appointment markAsScheduled() {
+        return new Appointment(id, dateTime, doctorId, patientId, issue, notes, prescriptions, Status.SCHEDULED);
+    }
+
     public Appointment cancel() {
-        if (status != Status.SCHEDULED)
-            throw new IllegalStateException("Cannot cancel an appointment that is not scheduled");
         return new Appointment(id, dateTime, doctorId, patientId, issue, notes, prescriptions, Status.CANCELLED);
     }
 
@@ -44,8 +47,6 @@ public record Appointment(String id, LocalDateTime dateTime, String doctorId, St
     }
 
     public Appointment markAsMissed() {
-        if (status != Status.SCHEDULED)
-            throw new IllegalStateException("Cannot mark as missed an appointment that is not scheduled");
         return new Appointment(id, dateTime, doctorId, patientId, issue, notes, prescriptions, Status.MISSED);
     }
 }
