@@ -6,6 +6,7 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public record Schedule(ScheduleId id, WorkingHours workingHours, List<TimeSchedule> timeSlots) {
 
@@ -81,6 +82,19 @@ public record Schedule(ScheduleId id, WorkingHours workingHours, List<TimeSchedu
         var newTimeSlot = new TimeSchedule(startTime, startTime.plus(duration), appointmentId);
         var newSlots = new ArrayList<>(timeSlots); //copy original slots
         newSlots.add(newTimeSlot); //add a new time slot to the copy
+        return new Schedule(id, workingHours, Collections.unmodifiableList(newSlots));
+    }
+
+    public Schedule removeTimeSlot(String appointmentId, LocalTime startTime) {
+        var newSlots = timeSlots
+                .stream()
+                .filter(slot -> !(slot.appointmentId().equals(appointmentId) && slot.startTime().equals(startTime)))
+                .collect(Collectors.toList());
+
+        if (newSlots.size() == timeSlots.size()) {
+            throw new IllegalArgumentException("TimeSlot has not been removed");
+        }
+
         return new Schedule(id, workingHours, Collections.unmodifiableList(newSlots));
     }
 }

@@ -44,6 +44,21 @@ public class ScheduleEntity extends KeyValueEntity<Schedule> {
         }
     }
 
+    public record RemoveAppointmentData(String appointmentId, LocalTime startTime) {}
+
+    public Effect<Done> removeTimeSlot(RemoveAppointmentData data) {
+        if (currentState() == null)
+            return effects().error("Working hours aren't defined for the selected date");
+
+        try {
+            var newState = currentState().
+                    removeTimeSlot(data.appointmentId,  data.startTime);
+            return effects().updateState(newState).thenReply(Done.getInstance());
+        } catch (IllegalArgumentException e) {
+            return effects().error(e.getMessage());
+        }
+    }
+
     public Effect<Optional<Schedule>> getSchedule() {
         return effects().reply(Optional.ofNullable(currentState()));
     }
