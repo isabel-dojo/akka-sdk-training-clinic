@@ -8,10 +8,11 @@ import akka.javasdk.client.ComponentClient;
 import akka.javasdk.http.AbstractHttpEndpoint;
 import akka.javasdk.http.HttpException;
 import com.clinic.application.ScheduleEntity;
+import com.clinic.application.SchedulesByDoctorView;
 import com.clinic.domain.Schedule;
 
 import java.time.LocalDate;
-import java.time.LocalTime;
+import java.util.List;
 
 import static com.clinic.api.common.Validation.parseDate;
 import static com.clinic.api.common.Validation.parseTime;
@@ -31,9 +32,7 @@ public class ScheduleEndpoint extends AbstractHttpEndpoint {
     public record WorkingHours(String startTime, String endTime) {
     }
 
-    public record CreateScheduleRequest(
-            WorkingHours workingHours
-    ) {
+    public record CreateScheduleRequest(WorkingHours workingHours) {
     }
 
     @Put("{day}")

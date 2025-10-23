@@ -5,8 +5,10 @@ import akka.javasdk.annotations.Acl;
 import akka.javasdk.annotations.http.Get;
 import akka.javasdk.annotations.http.HttpEndpoint;
 import akka.javasdk.annotations.http.Post;
+import akka.javasdk.client.ComponentClient;
 import akka.javasdk.http.AbstractHttpEndpoint;
 import akka.javasdk.http.HttpException;
+import com.clinic.application.SchedulesByDoctorView;
 
 import java.util.List;
 import java.util.Optional;
@@ -14,6 +16,12 @@ import java.util.Optional;
 @HttpEndpoint("doctors")
 @Acl(allow = @Acl.Matcher(principal = Acl.Principal.INTERNET))
 public class DoctorEndpoint extends AbstractHttpEndpoint {
+
+    private ComponentClient componentClient;
+
+    public DoctorEndpoint(ComponentClient componentClient) {
+        this.componentClient = componentClient;
+    }
 
     public record CreateDoctorRequest(
             String firstName,
@@ -61,5 +69,10 @@ public class DoctorEndpoint extends AbstractHttpEndpoint {
         } else {
             throw HttpException.notFound();
         }
+    }
+
+    @Get("{doctorId}/schedules")
+    public List<SchedulesByDoctorView.ScheduleSummary> getSchedulesByDoctor(String doctorId) {
+        return componentClient.forView().method(SchedulesByDoctorView::getSummaries).invoke(new SchedulesByDoctorView.FindScheduleSummary(doctorId, "2025-10-20", "2025-10-30")).schedules();
     }
 }
