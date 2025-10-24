@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 public record Doctor(
+        String id,
         String firstName,
         String lastName,
         List<String> specialities,
