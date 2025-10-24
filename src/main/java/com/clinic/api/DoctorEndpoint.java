@@ -38,14 +38,12 @@ public class DoctorEndpoint extends AbstractHttpEndpoint {
     public record Contact(Optional<String> phone, Optional<String> email) {
     }
 
-    // Helper method to convert Domain Contact to API Contact
     private Contact toApiContact(Doctor.Contact domainContact) {
         return new Contact(domainContact.phone(), domainContact.email());
     }
 
     @Post("{id}")
     public void createDoctor(String id, CreateDoctorRequest body) {
-        // Map API Contact record to Domain Contact record
         var domainContact = body.contact.map(c -> new Doctor.Contact(c.phone(), c.email()));
 
         var cmd = new DoctorEntity.CreateDoctorCommand(
@@ -56,7 +54,6 @@ public class DoctorEndpoint extends AbstractHttpEndpoint {
                 domainContact
         );
 
-        // Call the entity to create the doctor
         componentClient
                 .forKeyValueEntity(id)
                 .method(DoctorEntity::createDoctor)
@@ -68,14 +65,12 @@ public class DoctorEndpoint extends AbstractHttpEndpoint {
 
     @Get
     public List<DoctorSummary> getDoctors() {
-        // Call the view to get all doctors
         List<DoctorsView.DoctorRow> rows = componentClient
                 .forView()
                 .method(DoctorsView::getAllDoctors)
                 .invoke()
                 .doctors();
 
-        // Map view rows to API summary
         return rows.stream()
                 .map(row -> new DoctorSummary(
                         row.id(),
@@ -85,19 +80,15 @@ public class DoctorEndpoint extends AbstractHttpEndpoint {
                 .collect(Collectors.toList());
     }
 
-    // New endpoint to find by speciality
     @Get("speciality/{speciality}")
     public List<DoctorSummary> getDoctorsBySpeciality(String speciality) {
 
-        // --- THIS IS THE CORRECTED CALL ---
-        // Wrap the 'speciality' string in the new record
         List<DoctorsView.DoctorRow> rows = componentClient
                 .forView()
                 .method(DoctorsView::findBySpeciality)
                 .invoke(new DoctorsView.FindBySpecialityQuery(speciality)) // Pass the new record
                 .doctors();
 
-        // Map rows to summary
         return rows.stream()
                 .map(row -> new DoctorSummary(
                         row.id(),
@@ -120,14 +111,12 @@ public class DoctorEndpoint extends AbstractHttpEndpoint {
 
     @Get("{id}")
     public DoctorDetails getDoctor(String id) {
-        // Call the entity to get a specific doctor
         Doctor doctor = componentClient
                 .forKeyValueEntity(id)
                 .method(DoctorEntity::getDoctor)
                 .invoke()
                 .orElseThrow(HttpException::notFound);
 
-        // Map domain Doctor to API DoctorDetails
         return new DoctorDetails(
                 doctor.id(),
                 doctor.firstName(),
@@ -140,7 +129,6 @@ public class DoctorEndpoint extends AbstractHttpEndpoint {
 
     @Get("{doctorId}/schedules")
     public List<SchedulesByDoctorView.ScheduleSummary> getSchedulesByDoctor(String doctorId) {
-        // This endpoint remains unchanged
         return componentClient.forView().method(SchedulesByDoctorView::getSummaries).invoke(new SchedulesByDoctorView.FindScheduleSummary(doctorId, "2025-10-20", "2025-10-30")).schedules();
     }
 }
