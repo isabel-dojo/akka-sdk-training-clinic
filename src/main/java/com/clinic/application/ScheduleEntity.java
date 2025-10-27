@@ -8,6 +8,7 @@ import com.clinic.domain.Schedule;
 
 import java.time.Duration;
 import java.time.LocalTime;
+import java.util.List;
 import java.util.Optional;
 
 @Component(id = "schedule")
@@ -57,6 +58,27 @@ public class ScheduleEntity extends KeyValueEntity<Schedule> {
         } catch (IllegalArgumentException e) {
             return effects().error(e.getMessage());
         }
+    }
+
+    public Effect<List<String>> blockSchedule() {
+        if (currentState() == null) {
+            return effects().error("Schedule not found");
+        }
+        if (currentState().status() == Schedule.Status.BLOCKED) {
+            // If already blocked, just return the list, don't error
+            return effects().reply(currentState().timeSlots().stream()
+                    .map(Schedule.TimeSchedule::appointmentId)
+                    .toList());
+        }
+
+        var newSchedule = currentState().block();
+        var appointmentIds = currentState().timeSlots().stream()
+                .map(Schedule.TimeSchedule::appointmentId)
+                .toList();
+
+        return effects()
+                .updateState(newSchedule)
+                .thenReply(appointmentIds);
     }
 
     public Effect<Optional<Schedule>> getSchedule() {

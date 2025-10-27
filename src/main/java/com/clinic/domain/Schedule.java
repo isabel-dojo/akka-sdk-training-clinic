@@ -8,9 +8,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public record Schedule(ScheduleId id, WorkingHours workingHours, List<TimeSchedule> timeSlots) {
+public record Schedule(ScheduleId id, WorkingHours workingHours, List<TimeSchedule> timeSlots, Status status) {
 
     private static final Duration MIN_DURATION = Duration.ofMinutes(5);
+
+    public enum Status {
+        ACTIVE,
+        BLOCKED
+    }
 
     public Schedule {
         var isInWorkingHours = timeSlots
@@ -27,7 +32,7 @@ public record Schedule(ScheduleId id, WorkingHours workingHours, List<TimeSchedu
     }
 
     public Schedule(ScheduleId id, WorkingHours workingHours) {
-        this(id, workingHours, List.of());
+        this(id, workingHours, List.of(), Status.ACTIVE);
     }
 
     public record ScheduleId(String doctorId, LocalDate date) {
@@ -79,10 +84,13 @@ public record Schedule(ScheduleId id, WorkingHours workingHours, List<TimeSchedu
     }
 
     public Schedule scheduleAppointment(LocalTime startTime, Duration duration, String appointmentId) {
+        if (status != Status.ACTIVE) {
+            throw new IllegalArgumentException("Schedule is not active and cannot be booked.");
+        }
         var newTimeSlot = new TimeSchedule(startTime, startTime.plus(duration), appointmentId);
         var newSlots = new ArrayList<>(timeSlots); //copy original slots
         newSlots.add(newTimeSlot); //add a new time slot to the copy
-        return new Schedule(id, workingHours, Collections.unmodifiableList(newSlots));
+        return new Schedule(id, workingHours, Collections.unmodifiableList(newSlots), status);
     }
 
     public Schedule removeTimeSlot(String appointmentId, LocalTime startTime) {
@@ -95,7 +103,11 @@ public record Schedule(ScheduleId id, WorkingHours workingHours, List<TimeSchedu
             throw new IllegalArgumentException("TimeSlot has not been removed");
         }
 
-        return new Schedule(id, workingHours, Collections.unmodifiableList(newSlots));
+        return new Schedule(id, workingHours, Collections.unmodifiableList(newSlots), status);
+    }
+
+    public Schedule block() {
+        return new Schedule(id, workingHours, timeSlots, Status.BLOCKED);
     }
 }
 

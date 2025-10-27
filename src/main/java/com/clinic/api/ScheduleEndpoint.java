@@ -2,11 +2,13 @@ package com.clinic.api;
 
 import akka.http.javadsl.model.HttpHeader;
 import akka.javasdk.annotations.Acl;
+import akka.javasdk.annotations.http.Delete;
 import akka.javasdk.annotations.http.HttpEndpoint;
 import akka.javasdk.annotations.http.Put;
 import akka.javasdk.client.ComponentClient;
 import akka.javasdk.http.AbstractHttpEndpoint;
 import akka.javasdk.http.HttpException;
+import com.clinic.application.DeleteScheduleWorkflow;
 import com.clinic.application.ScheduleEntity;
 import com.clinic.application.SchedulesByDoctorView;
 import com.clinic.domain.Schedule;
@@ -55,5 +57,21 @@ public class ScheduleEndpoint extends AbstractHttpEndpoint {
                 .forKeyValueEntity(scheduleId.toString())
                 .method(ScheduleEntity::createSchedule)
                 .invoke(workingHours);
+    }
+
+    @Delete("{day}")
+    public void deleteSchedule(String day) {
+        var doctorId = requestContext()
+                .requestHeader(DOCTOR_ID_HEADER)
+                .map(HttpHeader::value)
+                .orElseThrow(() -> HttpException.badRequest("Missing doctorId header"));
+        LocalDate date = parseDate(day);
+
+        var workflowId = "delete-schedule-" + doctorId + "-" + day;
+
+        componentClient
+                .forWorkflow(workflowId)
+                .method(DeleteScheduleWorkflow::start)
+                .invoke(new DeleteScheduleWorkflow.DeleteScheduleCommand(doctorId, date));
     }
 }
