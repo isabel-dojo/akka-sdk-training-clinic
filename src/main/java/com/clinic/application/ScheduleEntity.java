@@ -81,6 +81,17 @@ public class ScheduleEntity extends KeyValueEntity<Schedule> {
                 .thenReply(appointmentIds);
     }
 
+    public Effect<Done> deleteSchedule() {
+        if (currentState() == null) {
+            return effects().error("Schedule not found");
+        }
+
+        var newSchedule = currentState().delete();
+        return effects()
+                .updateState(newSchedule)
+                .thenReply(Done.getInstance());
+    }
+
     public Effect<Optional<Schedule>> getSchedule() {
         return effects().reply(Optional.ofNullable(currentState()));
     }

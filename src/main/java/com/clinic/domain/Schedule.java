@@ -14,7 +14,8 @@ public record Schedule(ScheduleId id, WorkingHours workingHours, List<TimeSchedu
 
     public enum Status {
         ACTIVE,
-        BLOCKED
+        BLOCKED,
+        DELETED
     }
 
     public Schedule {
@@ -109,5 +110,10 @@ public record Schedule(ScheduleId id, WorkingHours workingHours, List<TimeSchedu
     public Schedule block() {
         return new Schedule(id, workingHours, timeSlots, Status.BLOCKED);
     }
+
+    public Schedule delete() {
+        return new Schedule(id, workingHours, timeSlots, Status.DELETED);
+    }
+
 }
 
