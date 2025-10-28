@@ -20,7 +20,7 @@ public class DoctorFinderAgent extends Agent {
     }
 
 
-    private static final String SYSTEM_MESSAGE = """
+    /*private static final String SYSTEM_MESSAGE = """
             You are an AI doctor finder. Your primary task is to find a suitable doctor for a patient with a given medical condition.
             First, determine a likely medical speciality based on the user's issue.
             Then, use the 'find_doctors_by_speciality' tool to find doctors for that speciality.
@@ -32,7 +32,7 @@ public class DoctorFinderAgent extends Agent {
                 .systemMessage(SYSTEM_MESSAGE)
                 .userMessage(issue)
                 .thenReply();
-    }
+    }*/
 
     /*@FunctionTool(name = "get-all-doctors", description = "Returns all available doctors")
     public List<Doctor> getAllDoctors() {

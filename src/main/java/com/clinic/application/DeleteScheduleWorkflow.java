@@ -4,6 +4,8 @@ import akka.Done;
 import akka.javasdk.annotations.Component;
 import akka.javasdk.client.ComponentClient;
 import akka.javasdk.workflow.Workflow;
+import com.clinic.application.ai.DoctorFinderAgent;
+import com.clinic.application.ai.UrgencyAgent;
 import com.clinic.domain.Appointment;
 import com.clinic.domain.Doctor;
 import com.clinic.domain.Schedule;
@@ -101,8 +103,17 @@ public class DeleteScheduleWorkflow extends Workflow<DeleteScheduleWorkflow.Dele
                         .thenTransitionTo(DeleteScheduleWorkflow::processNextAppointment);
             }
 
+            var urgencySession = commandContext().workflowId() + "-" + appointmentId;
+            String urgency = componentClient
+                    .forAgent()
+                    .inSession(urgencySession)
+                    .method(UrgencyAgent::urgency)
+                    .invoke(appointment.issue())
+                    .trim()
+                    .toLowerCase();
+
             Optional<RescheduleAppointmentWorkflow.RescheduleAppointmentCommand> newSlot =
-                    findNextAvailableSlot(appointment.doctorId(), appointment.dateTime());
+                    findNextAvailableSlot(appointment, urgency);
 
             if (newSlot.isPresent()) {
                 System.out.println("There is a new slot available!!!!");
@@ -140,30 +151,71 @@ public class DeleteScheduleWorkflow extends Workflow<DeleteScheduleWorkflow.Dele
         return stepEffects().thenEnd();
     }
 
-    private Optional<RescheduleAppointmentWorkflow.RescheduleAppointmentCommand> findNextAvailableSlot(String originalDoctorId, LocalDateTime originalDateTime) {
-        try {
-            System.out.println("..........Trying to find a new slot..........");
-            Doctor originalDoctor = componentClient
-                    .forKeyValueEntity(originalDoctorId)
-                    .method(DoctorEntity::getDoctor)
-                    .invoke()
-                    .orElseThrow(() -> new RuntimeException("Original doctor not found"));
 
-            List<String> specialities = originalDoctor.specialities();
-            if (specialities.isEmpty()) {
-                return Optional.empty();
+    private Optional<RescheduleAppointmentWorkflow.RescheduleAppointmentCommand> findNextAvailableSlot(Appointment appointment, String urgency) {
+        try {
+            System.out.println("..........Trying to find a new slot for issue: " + appointment.issue() + "..........");
+
+            // Use the DoctorFinderAgent
+            var agentSession = commandContext().workflowId() + "-" + appointment.id();
+            String speciality = componentClient
+                    .forAgent()
+                    .inSession(agentSession)
+                    .method(DoctorFinderAgent::getSpecialityForIssue)
+                    .invoke(appointment.issue())
+                    .trim(); // Trim whitespace
+
+            System.out.println("AI determined speciality: " + speciality);
+
+            // Safety check / fallback
+            if (speciality.isEmpty() || speciality.length() > 50) {
+                System.out.println("AI returned invalid speciality, falling back to original doctor's speciality.");
+                Doctor originalDoctor = componentClient
+                        .forKeyValueEntity(appointment.doctorId())
+                        .method(DoctorEntity::getDoctor)
+                        .invoke()
+                        .orElseThrow(() -> new RuntimeException("Original doctor not found"));
+                if (originalDoctor.specialities().isEmpty()) {
+                    return Optional.empty(); // No speciality to search on
+                }
+                speciality = originalDoctor.specialities().getFirst();
             }
 
             List<DoctorsView.DoctorRow> similarDoctors = componentClient
                     .forView()
                     .method(DoctorsView::findBySpeciality)
-                    .invoke(new DoctorsView.FindBySpecialityQuery(specialities.getFirst()))
+                    .invoke(new DoctorsView.FindBySpecialityQuery(speciality))
                     .doctors();
 
-            System.out.println("List of similar doctors: " + similarDoctors);
+            System.out.println("List of similar doctors in " + speciality + ": " + similarDoctors);
 
-            LocalDate searchDate = originalDateTime.toLocalDate();
-            for (int i = 0; i < 7; i++) { // Search for the next 7 days
+            LocalDate searchStartDate;
+            int searchDurationDays;
+            LocalDate originalDate = appointment.dateTime().toLocalDate();
+            LocalDate today = LocalDate.now();
+
+            switch (urgency) {
+                case "high":
+                    searchStartDate = today;
+                    searchDurationDays = 7;
+                    System.out.println("HIGH urgency: Searching for 7 days starting from today.");
+                    break;
+                case "medium":
+                    searchStartDate = originalDate.isBefore(today) ? today : originalDate;
+                    searchDurationDays = 7;
+                    System.out.println("MEDIUM urgency: Searching for 7 days starting from " + searchStartDate);
+                    break;
+                case "low":
+                default:
+                    LocalDate potentialStartDate = originalDate.plusDays(1);
+                    searchStartDate = potentialStartDate.isBefore(today) ? today : potentialStartDate;
+                    searchDurationDays = 14;
+                    System.out.println("LOW urgency: Searching for 14 days starting from " + searchStartDate);
+                    break;
+            }
+
+            LocalDate searchDate = searchStartDate;
+            for (int i = 0; i < searchDurationDays; i++) {
                 for (DoctorsView.DoctorRow doctor : similarDoctors) {
                     var scheduleId = new Schedule.ScheduleId(doctor.id(), searchDate).toString();
                     Schedule schedule = componentClient
@@ -175,14 +227,14 @@ public class DeleteScheduleWorkflow extends Workflow<DeleteScheduleWorkflow.Dele
                     if (schedule != null && schedule.status() == Schedule.Status.ACTIVE) {
                         LocalTime slotTime = schedule.workingHours().startTime();
                         LocalDateTime newDateTime = searchDate.atTime(slotTime);
-
+                        System.out.println("Found available slot with " + doctor.id() + " on " + newDateTime);
                         return Optional.of(new RescheduleAppointmentWorkflow.RescheduleAppointmentCommand(newDateTime, doctor.id()));
                     }
                 }
                 searchDate = searchDate.plusDays(1);
             }
 
-            System.out.println("Uh oh, could not find another slot");
+            System.out.println("Uh oh, could not find another slot in the " + searchDurationDays + "-day window.");
             return Optional.empty();
         } catch (Exception e) {
             System.err.println("Error finding next available slot: " + e.getMessage());

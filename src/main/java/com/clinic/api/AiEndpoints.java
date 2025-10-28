@@ -1,3 +1,4 @@
+/*
 package com.clinic.api;
 
 import akka.javasdk.annotations.Acl;
@@ -51,3 +52,4 @@ public class AiEndpoints extends AbstractHttpEndpoint {
                 .invoke(issue);
     }
 }
+*/
