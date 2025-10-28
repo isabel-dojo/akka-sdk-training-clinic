@@ -65,7 +65,6 @@ public class ScheduleEntity extends KeyValueEntity<Schedule> {
             return effects().error("Schedule not found");
         }
         if (currentState().status() == Schedule.Status.BLOCKED) {
-            // If already blocked, just return the list, don't error
             return effects().reply(currentState().timeSlots().stream()
                     .map(Schedule.TimeSchedule::appointmentId)
                     .toList());
