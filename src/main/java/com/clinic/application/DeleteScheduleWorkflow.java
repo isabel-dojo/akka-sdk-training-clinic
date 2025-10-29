@@ -14,6 +14,7 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,6 +22,7 @@ import java.util.Optional;
 public class DeleteScheduleWorkflow extends Workflow<DeleteScheduleWorkflow.DeleteScheduleState> {
 
     private final ComponentClient componentClient;
+    private static final Duration DEFAULT_DURATION = Duration.ofMinutes(30);
 
     public DeleteScheduleWorkflow(ComponentClient componentClient) {
         this.componentClient = componentClient;
@@ -29,6 +31,9 @@ public class DeleteScheduleWorkflow extends Workflow<DeleteScheduleWorkflow.Dele
     public record DeleteScheduleState(String doctorId, LocalDate date, List<String> appointmentsToCancel) {}
     public record DeleteScheduleCommand(String doctorId, LocalDate date) {}
 
+    /**
+     * Step 1: Start the workflow.
+     */
     public Effect<Done> start(DeleteScheduleCommand cmd) {
         if (currentState() != null) {
             return effects().error("Workflow already running for this schedule deletion.");
@@ -36,10 +41,13 @@ public class DeleteScheduleWorkflow extends Workflow<DeleteScheduleWorkflow.Dele
         var state = new DeleteScheduleState(cmd.doctorId, cmd.date, List.of());
         return effects()
                 .updateState(state)
-                .transitionTo(DeleteScheduleWorkflow::blockSchedule)
+                .transitionTo(DeleteScheduleWorkflow::blockSchedule) // Move to step 2
                 .thenReply(Done.getInstance());
     }
 
+    /**
+     * Step 2: Lock the schedule.
+     */
     public StepEffect blockSchedule() {
         var scheduleId = new Schedule.ScheduleId(currentState().doctorId(), currentState().date()).toString();
 
@@ -66,6 +74,9 @@ public class DeleteScheduleWorkflow extends Workflow<DeleteScheduleWorkflow.Dele
     }
 
 
+    /**
+     * Step 3: Process Appointments
+     */
     public StepEffect processNextAppointment() {
         var appointmentsToCancel = currentState().appointmentsToCancel();
 
@@ -76,12 +87,16 @@ public class DeleteScheduleWorkflow extends Workflow<DeleteScheduleWorkflow.Dele
         return stepEffects().thenTransitionTo(DeleteScheduleWorkflow::attemptReschedule);
     }
 
+    /**
+     * Step 4: Attempt to Reschedule.
+     */
     public StepEffect attemptReschedule() {
         var appointmentsToCancel = currentState().appointmentsToCancel();
         var appointmentId = appointmentsToCancel.get(0);
         var remainingAppointments = appointmentsToCancel.stream().skip(1).toList();
 
         System.out.println("Attempting to reschedule appointment " + appointmentId);
+        System.out.println("Remaining appointments size: " + remainingAppointments.size());
 
         var newState = new DeleteScheduleState(
                 currentState().doctorId(),
@@ -138,6 +153,9 @@ public class DeleteScheduleWorkflow extends Workflow<DeleteScheduleWorkflow.Dele
                 .thenTransitionTo(DeleteScheduleWorkflow::processNextAppointment);
     }
 
+    /**
+     * Step 5: Finish Deletion.
+     */
     public StepEffect softDeleteSchedule() {
         var scheduleId = new Schedule.ScheduleId(currentState().doctorId(), currentState().date()).toString();
         try {
@@ -148,26 +166,28 @@ public class DeleteScheduleWorkflow extends Workflow<DeleteScheduleWorkflow.Dele
         } catch (Exception e) {
             System.err.println("Failed to soft-delete schedule " + scheduleId + ": " + e.getMessage());
         }
-        return stepEffects().thenEnd();
+        return stepEffects().thenEnd(); // End the workflow
     }
 
 
+    /**
+     * Helper Function
+     */
     private Optional<RescheduleAppointmentWorkflow.RescheduleAppointmentCommand> findNextAvailableSlot(Appointment appointment, String urgency) {
         try {
             System.out.println("..........Trying to find a new slot for issue: " + appointment.issue() + "..........");
 
-            // Use the DoctorFinderAgent
             var agentSession = commandContext().workflowId() + "-" + appointment.id();
             String speciality = componentClient
                     .forAgent()
                     .inSession(agentSession)
                     .method(DoctorFinderAgent::getSpecialityForIssue)
                     .invoke(appointment.issue())
-                    .trim(); // Trim whitespace
+                    .trim();
 
             System.out.println("AI determined speciality: " + speciality);
 
-            // Safety check / fallback
+            // Fallback
             if (speciality.isEmpty() || speciality.length() > 50) {
                 System.out.println("AI returned invalid speciality, falling back to original doctor's speciality.");
                 Doctor originalDoctor = componentClient
@@ -176,7 +196,7 @@ public class DeleteScheduleWorkflow extends Workflow<DeleteScheduleWorkflow.Dele
                         .invoke()
                         .orElseThrow(() -> new RuntimeException("Original doctor not found"));
                 if (originalDoctor.specialities().isEmpty()) {
-                    return Optional.empty(); // No speciality to search on
+                    return Optional.empty();
                 }
                 speciality = originalDoctor.specialities().getFirst();
             }
@@ -189,26 +209,20 @@ public class DeleteScheduleWorkflow extends Workflow<DeleteScheduleWorkflow.Dele
 
             System.out.println("List of similar doctors in " + speciality + ": " + similarDoctors);
 
-            LocalDate searchStartDate;
             int searchDurationDays;
-            LocalDate originalDate = appointment.dateTime().toLocalDate();
-            LocalDate today = LocalDate.now();
+            LocalDate searchStartDate = appointment.dateTime().toLocalDate();
 
             switch (urgency) {
                 case "high":
-                    searchStartDate = today;
                     searchDurationDays = 7;
                     System.out.println("HIGH urgency: Searching for 7 days starting from today.");
                     break;
                 case "medium":
-                    searchStartDate = originalDate.isBefore(today) ? today : originalDate;
                     searchDurationDays = 7;
                     System.out.println("MEDIUM urgency: Searching for 7 days starting from " + searchStartDate);
                     break;
                 case "low":
                 default:
-                    LocalDate potentialStartDate = originalDate.plusDays(1);
-                    searchStartDate = potentialStartDate.isBefore(today) ? today : potentialStartDate;
                     searchDurationDays = 14;
                     System.out.println("LOW urgency: Searching for 14 days starting from " + searchStartDate);
                     break;
@@ -225,10 +239,14 @@ public class DeleteScheduleWorkflow extends Workflow<DeleteScheduleWorkflow.Dele
                             .orElse(null);
 
                     if (schedule != null && schedule.status() == Schedule.Status.ACTIVE) {
-                        LocalTime slotTime = schedule.workingHours().startTime();
-                        LocalDateTime newDateTime = searchDate.atTime(slotTime);
-                        System.out.println("Found available slot with " + doctor.id() + " on " + newDateTime);
-                        return Optional.of(new RescheduleAppointmentWorkflow.RescheduleAppointmentCommand(newDateTime, doctor.id()));
+                        Optional<LocalTime> availableSlotTime = findFirstAvailableSlot(schedule);
+
+                        if (availableSlotTime.isPresent()) {
+                            LocalTime slotTime = availableSlotTime.get();
+                            LocalDateTime newDateTime = searchDate.atTime(slotTime);
+                            System.out.println("Found available slot with " + doctor.id() + " on " + newDateTime);
+                            return Optional.of(new RescheduleAppointmentWorkflow.RescheduleAppointmentCommand(newDateTime, doctor.id()));
+                        }
                     }
                 }
                 searchDate = searchDate.plusDays(1);
@@ -242,12 +260,38 @@ public class DeleteScheduleWorkflow extends Workflow<DeleteScheduleWorkflow.Dele
         }
     }
 
+    private Optional<LocalTime> findFirstAvailableSlot(Schedule schedule) {
+        List<Schedule.TimeSchedule> sortedSlots = schedule.timeSlots().stream()
+                .sorted(Comparator.comparing(Schedule.TimeSchedule::startTime))
+                .toList();
+
+        LocalTime lastEndTime = schedule.workingHours().startTime();
+
+        for (Schedule.TimeSchedule slot : sortedSlots) {
+            LocalTime currentStartTime = slot.startTime();
+
+            if (Duration.between(lastEndTime, currentStartTime).compareTo(DeleteScheduleWorkflow.DEFAULT_DURATION) >= 0) {
+                return Optional.of(lastEndTime);
+            }
+
+            if (slot.endTime().isAfter(lastEndTime)) {
+                lastEndTime = slot.endTime();
+            }
+        }
+
+        LocalTime workingEndTime = schedule.workingHours().endTime();
+        if (Duration.between(lastEndTime, workingEndTime).compareTo(DeleteScheduleWorkflow.DEFAULT_DURATION) >= 0) {
+            return Optional.of(lastEndTime);
+        }
+
+        return Optional.empty();
+    }
 
     @Override
     public WorkflowSettings settings() {
         return WorkflowSettingsBuilder
                 .newBuilder()
-                .stepTimeout(DeleteScheduleWorkflow::processNextAppointment, Duration.ofSeconds(10))
+                .stepTimeout(DeleteScheduleWorkflow::attemptReschedule, Duration.ofSeconds(30))
                 .build();
     }
 }
